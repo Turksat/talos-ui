@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ node.hostname|default:node.ip_address }} Dashboard – Talos{% endblock %}
+{% block header %}Node Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+.stat-bar-bg { background:#21262d; border-radius:4px; height:18px; overflow:hidden; }
+.stat-bar    { height:18px; border-radius:4px; transition:width .4s ease; }
+.tbl-mono    { font-family:monospace; font-size:.78rem; }
+.tbl-mono td, .tbl-mono th { padding:.25rem .5rem; vertical-align:middle; }
+.cpu-bar-bg  { background:#21262d; border-radius:3px; height:10px; display:inline-block; width:80px; vertical-align:middle; overflow:hidden; }
+.cpu-bar     { height:10px; background:#3fb950; border-radius:3px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="mb-0 fw-bold">{{ node.hostname|default:node.ip_address }}</h5>
+    <small class="text-muted">
+      <i class="bi bi-hdd-network me-1"></i>{{ node.ip_address }}
+      &nbsp;|&nbsp;
+      <span class="badge {% if node.role == 'controlplane' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ node.get_role_display }}</span>
+      &nbsp;Talos {{ node.talos_version|default:"—" }}
+      &nbsp;K8s {{ node.k8s_version|default:"—" }}
+    </small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'clusters:node_detail' cluster.pk node.ip_address %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Node Detail
+    </a>
+    <a href="{% url 'clusters:detail' cluster.pk %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-diagram-3 me-1"></i>Cluster
+    </a>
+  </div>
+</div>
+
+<!-- Live data section — HTMX polls every 5s -->
+<div id="dashboard-data"
+     hx-get="{% url 'clusters:node_dashboard_data' cluster.pk node.ip_address %}"
+     hx-trigger="load, every 5s"
+     hx-swap="innerHTML"
+     hx-indicator="#spinner">
+
+  <!-- initial loading state -->
+  <div class="text-center py-5 text-muted">
+    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+    Loading live stats…
+  </div>
+</div>
+
+<div class="text-end mt-2">
+  <small class="text-muted" id="spinner">
+    <span class="htmx-indicator">
+      <span class="spinner-border spinner-border-sm me-1" role="status"></span>Refreshing…
+    </span>
+    Auto-refreshes every 5 seconds
+  </small>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}{% endblock %}

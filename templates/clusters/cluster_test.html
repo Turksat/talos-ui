@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Test Connection – {{ cluster.name }}{% endblock %}
+{% block header %}Connection Test: {{ cluster.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="mb-1">Connection Test</h5>
+    <span class="text-muted small">Endpoint: <code>{{ cluster.endpoint }}</code></span>
+  </div>
+  <a href="{% url 'clusters:detail' cluster.pk %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i> Back
+  </a>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+  <strong>Failed to run test:</strong> {{ error }}
+</div>
+{% endif %}
+
+{% for r in results %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">talosctl {{ r.label }}</span>
+    <span class="badge bg-{% if r.returncode == 0 %}success{% else %}danger{% endif %}">
+      exit {{ r.returncode }}
+    </span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-2"><i class="bi bi-terminal me-1"></i><code>{{ r.cmd }}</code></p>
+
+    {% if r.stdout %}
+    <div class="mb-2">
+      <div class="text-success small fw-semibold mb-1">stdout</div>
+      <div class="log-output" style="height:auto;max-height:300px">{{ r.stdout }}</div>
+    </div>
+    {% endif %}
+
+    {% if r.stderr %}
+    <div>
+      <div class="text-danger small fw-semibold mb-1">stderr</div>
+      <div class="log-output" style="height:auto;max-height:200px">{{ r.stderr }}</div>
+    </div>
+    {% endif %}
+
+    {% if not r.stdout and not r.stderr %}
+    <p class="text-muted small mb-0">No output.</p>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<div class="card mt-4">
+  <div class="card-header">Troubleshooting</div>
+  <div class="card-body text-muted small">
+    <ul class="mb-0">
+      <li><strong>connection refused</strong> → Check that the Talos API port (50000) is open and the firewall allows access.</li>
+      <li><strong>certificate signed by unknown authority</strong> → The CA certificate in your talosconfig is incorrect or missing.</li>
+      <li><strong>context deadline exceeded</strong> → The IP is unreachable; check network connectivity.</li>
+      <li><strong>no such host</strong> → The endpoint should be an IP address, not a hostname.</li>
+      <li><strong>exit 0, no output</strong> → For <code>get members</code>, the node may not be fully joined yet.</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

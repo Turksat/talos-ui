@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}K8s Upgrade – Talos{% endblock %}
+{% block header %}Kubernetes Upgrade{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h5 class="mb-0">Kubernetes Upgrade</h5>
+  <a href="{% url 'upgrades:job_list' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-list-task me-1"></i> All Jobs
+  </a>
+</div>
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-kubernetes me-1"></i> New K8s Upgrade Job</div>
+      <div class="card-body">
+        <form method="post" onsubmit="this.querySelector('[type=submit]').disabled=true">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Cluster <span class="text-danger">*</span></label>
+            <select name="cluster" class="form-select" required>
+              <option value="">— Select cluster —</option>
+              {% for cluster in form.cluster.field.queryset %}
+              <option value="{{ cluster.pk }}"
+                {% if form.cluster.value == cluster.pk|stringformat:"s" %}selected{% endif %}>
+                {{ cluster.name }}
+              </option>
+              {% endfor %}
+            </select>
+            {% for error in form.cluster.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Target K8s Version <span class="text-danger">*</span></label>
+            <input type="text" name="target_version" class="form-control"
+                   placeholder="1.32.0"
+                   value="{{ form.target_version.value|default:'' }}" required>
+            <div class="form-text">{{ form.target_version.help_text }}</div>
+            {% for error in form.target_version.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          {% for error in form.non_field_errors %}
+            <div class="alert alert-danger">{{ error }}</div>
+          {% endfor %}
+
+          <button type="submit" class="btn btn-primary"
+                  onclick="return confirm('Start Kubernetes upgrade? This will affect all control-plane nodes.')">
+            <i class="bi bi-play-fill me-1"></i> Start K8s Upgrade
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Info</div>
+      <div class="card-body text-muted small">
+        <p><strong>Kubernetes upgrade</strong> uses <code>talosctl upgrade-k8s</code> to upgrade all cluster components.</p>
+        <p>This upgrades: <code>kube-apiserver</code>, <code>kube-controller-manager</code>, <code>kube-scheduler</code>, <code>kube-proxy</code>, <code>kubelet</code>, and <code>kubeadm</code>.</p>
+        <p>Check compatible K8s versions for your Talos release at:<br>
+          <a href="https://www.talos.dev/latest/introduction/support-matrix/" target="_blank">
+            talos.dev/support-matrix
+          </a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

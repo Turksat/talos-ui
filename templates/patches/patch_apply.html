@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Apply Patch: {{ patch.name }} – Talos{% endblock %}
+{% block header %}Apply Patch: {{ patch.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <a href="{% url 'patches:list' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i> Back
+  </a>
+</div>
+
+<div class="row g-4">
+  <!-- Patch info -->
+  <div class="col-md-4">
+    <div class="card mb-3">
+      <div class="card-header">Patch Info</div>
+      <div class="card-body">
+        <dl class="mb-0">
+          <dt class="small text-muted">Name</dt>
+          <dd class="fw-semibold">{{ patch.name }}</dd>
+          {% if patch.description %}
+          <dt class="small text-muted">Description</dt>
+          <dd class="small">{{ patch.description }}</dd>
+          {% endif %}
+          <dt class="small text-muted">Default Target</dt>
+          <dd>{{ patch.get_target_role_display }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-code-slash me-1"></i> Patch Content</div>
+      <div class="card-body p-0">
+        <pre class="log-output m-0" style="height:200px;font-size:.75rem">{{ patch.patch_content }}</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Apply form -->
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header">Apply Options</div>
+      <div class="card-body">
+        <form method="post" id="apply-form">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Cluster <span class="text-danger">*</span></label>
+            <select name="cluster" id="cluster-select" class="form-select" required>
+              <option value="">Select cluster…</option>
+              {% for c in form.cluster.field.queryset %}
+              <option value="{{ c.pk }}" {% if form.cluster.value == c.pk|stringformat:"s" %}selected{% endif %}>
+                {{ c.name }} ({{ c.endpoint }})
+              </option>
+              {% endfor %}
+            </select>
+            {% for error in form.cluster.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Target Role</label>
+            <select name="target_role" id="role-select" class="form-select">
+              {% for val, label in form.fields.target_role.choices %}
+              <option value="{{ val }}" {% if val == patch.target_role %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            {% for error in form.target_role.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Target Nodes</label>
+            <div class="form-text mb-2">Leave all unchecked to apply to all nodes matching the selected role.</div>
+            <div id="nodes-container" class="border rounded p-3" style="min-height:60px">
+              <span class="text-muted small" id="nodes-placeholder">Select a cluster to see nodes…</span>
+              <div id="nodes-list" class="d-flex flex-column gap-1"></div>
+            </div>
+          </div>
+
+          <div class="alert alert-warning d-flex align-items-start gap-2">
+            <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+            <div>
+              <strong>Warning:</strong> Applying a patch may cause nodes to restart their services
+              or reboot depending on the machine config change. Ensure you have a maintenance window.
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success" id="submit-btn">
+              <i class="bi bi-play-fill"></i> Apply Patch
+            </button>
+            <a href="{% url 'patches:list' %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const clusterSelect = document.getElementById('cluster-select');
+const roleSelect = document.getElementById('role-select');
+const nodesList = document.getElementById('nodes-list');
+const placeholder = document.getElementById('nodes-placeholder');
+
+function loadNodes() {
+  const clusterId = clusterSelect.value;
+  const role = roleSelect.value;
+  nodesList.innerHTML = '';
+
+  if (!clusterId) {
+    placeholder.style.display = '';
+    return;
+  }
+  placeholder.style.display = 'none';
+  placeholder.textContent = 'Loading…';
+  placeholder.style.display = '';
+
+  fetch(`/patches/api/clusters/${clusterId}/nodes/?role=${role}`)
+    .then(r => r.json())
+    .then(data => {
+      placeholder.style.display = 'none';
+      if (!data.nodes.length) {
+        placeholder.textContent = 'No nodes found for this selection.';
+        placeholder.style.display = '';
+        return;
+      }
+      data.nodes.forEach(node => {
+        const label = document.createElement('label');
+        label.className = 'form-check d-flex align-items-center gap-2 mb-0';
+        label.innerHTML = `
+          <input class="form-check-input" type="checkbox" name="target_nodes" value="${node.id}">
+          <span class="font-monospace small">${node.ip_address}</span>
+          ${node.hostname ? `<span class="text-muted small">(${node.hostname})</span>` : ''}
+          <span class="badge ${node.role === 'controlplane' ? 'bg-warning text-dark' : 'bg-secondary'} ms-1">${node.role}</span>
+        `;
+        nodesList.appendChild(label);
+      });
+    })
+    .catch(() => {
+      placeholder.textContent = 'Failed to load nodes.';
+      placeholder.style.display = '';
+    });
+}
+
+clusterSelect.addEventListener('change', loadNodes);
+roleSelect.addEventListener('change', loadNodes);
+
+// Trigger on load if cluster already selected
+if (clusterSelect.value) loadNodes();
+
+// Prevent double-submit
+document.getElementById('apply-form').addEventListener('submit', function() {
+  var btn = document.getElementById('submit-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Applying…'; }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Patch Job #{{ job.pk }} – Talos{% endblock %}
+{% block header %}Patch Job #{{ job.pk }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="mb-1">
+      {{ job.patch_template.name|default:"Ad-hoc Patch" }}
+      <span class="text-muted fw-normal fs-6">on {{ job.cluster.name }}</span>
+    </h5>
+    <span class="text-muted small">
+      Target: <strong>{{ job.target_role }}</strong>
+      {% if job.patch_template %}· Template: <strong>{{ job.patch_template.name }}</strong>{% endif %}
+    </span>
+  </div>
+  <a href="{% url 'patches:job_list' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i> All Jobs
+  </a>
+</div>
+
+<!-- Status cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <span class="badge badge-status-{{ job.status }} fs-6" id="status-badge">
+          {{ job.get_status_display }}
+        </span>
+        <div class="text-muted small mt-1">Status</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <div class="fw-bold">{{ job.initiated_by.username|default:"–" }}</div>
+        <div class="text-muted small mt-1">Initiated By</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <div class="fw-bold small">{{ job.created_at|date:"Y-m-d H:i" }}</div>
+        <div class="text-muted small mt-1">Created</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <div class="fw-bold small">
+          {% if job.completed_at %}{{ job.completed_at|date:"Y-m-d H:i" }}{% else %}–{% endif %}
+        </div>
+        <div class="text-muted small mt-1">Completed</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if job.target_nodes.exists %}
+<div class="card mb-4">
+  <div class="card-header">Target Nodes</div>
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-2">
+      {% for node in job.target_nodes.all %}
+      <span class="badge bg-secondary font-monospace">{{ node.ip_address }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Console output -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-terminal me-1"></i> Console Output</span>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-outline-secondary btn-sm" id="clear-btn" onclick="document.getElementById('log-output').textContent=''">
+        <i class="bi bi-x-circle"></i> Clear
+      </button>
+      <span class="badge bg-secondary" id="ws-status">connecting...</span>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div class="log-output" id="log-output" style="height:500px">{{ job.logs }}</div>
+  </div>
+</div>
+
+<!-- Patch content -->
+<div class="card">
+  <div class="card-header">
+    <a class="text-decoration-none text-reset d-flex align-items-center gap-1"
+       role="button"
+       data-bs-toggle="collapse"
+       href="#patch-collapse"
+       aria-expanded="false"
+       aria-controls="patch-collapse">
+      <i class="bi bi-code-slash me-1" aria-hidden="true"></i> Applied Patch Content
+      <i class="bi bi-chevron-down ms-auto small" aria-hidden="true"></i>
+    </a>
+  </div>
+  <div class="collapse" id="patch-collapse">
+    <div class="card-body p-0">
+      <pre class="log-output m-0" style="height:200px;font-size:.75rem">{{ job.patch_content }}</pre>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const logOutput = document.getElementById('log-output');
+const wsBadge = document.getElementById('ws-status');
+const statusBadge = document.getElementById('status-badge');
+const jobStatus = '{{ job.status }}';
+
+logOutput.scrollTop = logOutput.scrollHeight;
+
+if (jobStatus === 'pending' || jobStatus === 'running') {
+  const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${wsProto}://${window.location.host}/ws/patches/jobs/{{ job.pk }}/progress/`);
+  let wsHadError = false;
+
+  ws.onopen = () => { wsBadge.textContent = 'live'; wsBadge.className = 'badge bg-success'; };
+  ws.onclose = () => {
+    if (!wsHadError) {
+      wsBadge.textContent = 'disconnected';
+      wsBadge.className = 'badge bg-secondary';
+    }
+    wsHadError = false;
+  };
+  ws.onerror = () => {
+    wsHadError = true;
+    wsBadge.textContent = 'error';
+    wsBadge.className = 'badge bg-danger';
+  };
+
+  ws.onmessage = (e) => {
+    let data;
+    try { data = JSON.parse(e.data); } catch (_) { return; }
+
+    if (data.message) {
+      const line = document.createElement('div');
+      if (data.done && data.status === 'success') line.style.color = '#3fb950';
+      else if (data.done && data.status === 'failed') line.style.color = '#f85149';
+      else if (data.node) line.style.color = '#79c0ff';
+      line.textContent = data.message;
+      logOutput.appendChild(line);
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+    if (data.status && !data.done) {
+      statusBadge.textContent = data.status;
+      statusBadge.className = `badge badge-status-${data.status} fs-6`;
+    }
+    if (data.done) {
+      statusBadge.textContent = data.status || jobStatus;
+      statusBadge.className = `badge badge-status-${data.status || jobStatus} fs-6`;
+      wsBadge.textContent = 'done';
+      wsBadge.className = 'badge bg-secondary';
+      ws.close();
+    }
+  };
+} else {
+  wsBadge.textContent = 'completed';
+  wsBadge.className = 'badge bg-secondary';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – Talos{% endblock %}
+{% block header %}Dashboard Overview{% endblock %}
+
+{% block content %}
+<!-- Cluster Health Cards -->
+<div class="row g-3 mb-4">
+  {% for cluster in clusters %}
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-diagram-3 me-1 text-primary"></i> {{ cluster.name }}</span>
+        <form method="post" action="{% url 'clusters:refresh' cluster.pk %}" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-secondary" title="Refresh nodes" aria-label="Refresh nodes for {{ cluster.name }}">
+            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+          </button>
+        </form>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-1">{{ cluster.endpoint }}</p>
+        <div class="d-flex gap-3 mb-3">
+          <div class="text-center">
+            <div class="fs-4 fw-bold text-success">{{ cluster.nodes.count }}</div>
+            <div class="text-muted small">Nodes</div>
+          </div>
+          <div class="text-center">
+            <div class="fs-4 fw-bold text-info">
+              {% with cp_nodes=cluster.nodes.all %}
+                {% for n in cp_nodes %}{% if n.role == 'controlplane' %}<span class="d-none" data-cp-marker></span>{% endif %}{% endfor %}
+                <span class="cp-node-count">—</span>
+              {% endwith %}
+            </div>
+            <div class="text-muted small">CP Nodes</div>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-1">
+          {% for node in cluster.nodes.all %}
+            <span class="badge {% if node.status == 'running' %}bg-success{% elif node.status == 'unknown' %}bg-secondary{% else %}bg-danger{% endif %}"
+                  title="{{ node.ip_address }}">
+              {{ node.hostname|default:node.ip_address }}
+            </span>
+          {% empty %}
+            <span class="text-muted small">No nodes yet</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-footer text-end">
+        <a href="{% url 'clusters:detail' cluster.pk %}" class="btn btn-sm btn-primary">
+          View Details <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="col">
+    <div class="alert alert-secondary">
+      No clusters yet.
+      <a href="{% url 'clusters:add' %}" class="alert-link">Add your first cluster</a>.
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Node Status Table (auto-refresh every 10s) -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between">
+    <span><i class="bi bi-server me-1"></i> All Nodes</span>
+    <span class="text-muted small" id="last-refresh">Auto-refreshing every 10s</span>
+  </div>
+  <div class="card-body p-0"
+       hx-get="{% url 'dashboard:node_rows' %}"
+       hx-trigger="every 10s"
+       hx-target="#node-table-body"
+       hx-swap="innerHTML">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Node</th><th>Cluster</th><th>Role</th>
+            <th>Status</th><th>Talos</th><th>K8s</th><th>Last Seen</th>
+          </tr>
+        </thead>
+        <tbody id="node-table-body">
+          {% include "dashboard/_node_rows.html" with clusters=clusters %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Operations -->
+<div class="card">
+  <div class="card-header"><i class="bi bi-clock-history me-1"></i> Recent Operations</div>
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr><th>Node</th><th>Operation</th><th>Status</th><th>By</th><th>Time</th></tr>
+      </thead>
+      <tbody>
+        {% for op in recent_ops %}
+        <tr>
+          <td>{{ op.node }}</td>
+          <td>{{ op.get_operation_display }}</td>
+          <td>
+            <span class="badge badge-status-{{ op.status }}">{{ op.get_status_display }}</span>
+          </td>
+          <td>{{ op.initiated_by.username }}</td>
+          <td class="text-muted small">{{ op.started_at|timesince }} ago</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-3">No operations yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Compute CP node counts from hidden data markers per cluster card
+document.querySelectorAll('.cp-node-count').forEach(function(el) {
+  const cardBody = el.closest('.card-body');
+  if (cardBody) {
+    const count = cardBody.querySelectorAll('[data-cp-marker]').length;
+    el.textContent = count;
+  }
+});
+</script>
+{% endblock %}

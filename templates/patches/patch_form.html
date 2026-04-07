@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} – Talos{% endblock %}
+{% block header %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<style>
+  .CodeMirror { height: 500px; font-size: .85rem; border-radius: .375rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <a href="{% url 'patches:list' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i> Back
+  </a>
+  {% if patch %}
+  <a href="{% url 'patches:apply' patch.pk %}" class="btn btn-success btn-sm">
+    <i class="bi bi-play-fill"></i> Apply this Patch
+  </a>
+  {% endif %}
+</div>
+
+<form method="post" id="patch-form">
+  {% csrf_token %}
+  <div class="row g-4">
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header">Metadata</div>
+        <div class="card-body d-flex flex-column gap-3">
+          <div>
+            <label class="form-label">Name <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control {% if form.name.errors %}is-invalid{% endif %}"
+                   value="{{ form.name.value|default:'' }}" required>
+            {% for e in form.name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+          </div>
+          <div>
+            <label class="form-label">Description</label>
+            <textarea name="description" class="form-control" rows="3">{{ form.description.value|default:'' }}</textarea>
+          </div>
+          <div>
+            <label class="form-label">Default Target Role</label>
+            <select name="target_role" class="form-select">
+              {% for val, label in form.fields.target_role.choices %}
+              <option value="{{ val }}" {% if form.target_role.value == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Can be overridden when applying.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-code-slash me-1"></i> Patch Content (JSON)</span>
+          <div class="d-flex gap-1">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="editor.execCommand('undo')">
+              <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="editor.execCommand('redo')">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="format-btn">
+              <i class="bi bi-braces"></i> Format
+            </button>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          {% if form.patch_content.errors %}
+          <div class="alert alert-danger m-3 mb-0">
+            {% for e in form.patch_content.errors %}{{ e }}{% endfor %}
+          </div>
+          {% endif %}
+          <textarea id="patch-content-raw" name="patch_content" style="display:none">{{ form.patch_content.value|default:'machine:\n  features:\n    hostDNS:\n      enabled: true\n' }}</textarea>
+          <div id="patch-editor"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4 d-flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-floppy"></i> Save Patch
+    </button>
+    <a href="{% url 'patches:list' %}" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script>
+const rawTextarea = document.getElementById('patch-content-raw');
+
+function detectMode(value) {
+  const s = value.trim();
+  return (s.startsWith('[') || s.startsWith('{')) ? { name: 'javascript', json: true } : 'yaml';
+}
+
+const editor = CodeMirror(document.getElementById('patch-editor'), {
+  value: rawTextarea.value,
+  mode: detectMode(rawTextarea.value),
+  theme: 'dracula',
+  lineNumbers: true,
+  matchBrackets: true,
+  autoCloseBrackets: true,
+  indentUnit: 2,
+  tabSize: 2,
+  indentWithTabs: false,
+});
+
+editor.on('change', () => {
+  editor.setOption('mode', detectMode(editor.getValue()));
+});
+
+document.getElementById('format-btn').addEventListener('click', () => {
+  const val = editor.getValue().trim();
+  if (val.startsWith('[') || val.startsWith('{')) {
+    try {
+      editor.setValue(JSON.stringify(JSON.parse(val), null, 2));
+    } catch (e) {
+      alert('Invalid JSON: ' + e.message);
+    }
+  } else {
+    alert('Format only works for JSON. YAML is already human-readable.');
+  }
+});
+
+document.getElementById('patch-form').addEventListener('submit', function() {
+  rawTextarea.value = editor.getValue();
+  rawTextarea.style.display = '';
+  var btn = this.querySelector('[type=submit]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Saving…'; }
+});
+</script>
+{% endblock %}

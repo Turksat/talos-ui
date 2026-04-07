@@ -1,0 +1,143 @@
+<!-- ── Memory ──────────────────────────────────────────────────────────── -->
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-memory me-1"></i> Memory</span>
+    <small class="text-muted">
+      Used {{ mem.USED|default:"—" }} MB / {{ mem.TOTAL|default:"—" }} MB
+      &nbsp;·&nbsp; Available {{ mem.AVAILABLE|default:"—" }} MB
+      &nbsp;·&nbsp; Cache {{ mem.CACHE|default:"—" }} MB
+    </small>
+  </div>
+  <div class="card-body py-3">
+    {% if mem %}
+    <div class="mb-1 d-flex justify-content-between">
+      <small class="text-muted">Memory Usage</small>
+      <small class="fw-bold {% if mem_pct > 85 %}text-danger{% elif mem_pct > 65 %}text-warning{% else %}text-success{% endif %}">{{ mem_pct }}%</small>
+    </div>
+    <div class="stat-bar-bg mb-3">
+      <div class="stat-bar {% if mem_pct > 85 %}bg-danger{% elif mem_pct > 65 %}bg-warning{% else %}bg-success{% endif %}"
+           style="width:{{ mem_pct }}%"
+           role="progressbar"
+           aria-valuenow="{{ mem_pct }}"
+           aria-valuemin="0"
+           aria-valuemax="100"
+           aria-label="Memory usage {{ mem_pct }}%"></div>
+    </div>
+
+    <div class="row g-2 text-center">
+      <div class="col">
+        <div class="small text-muted">Total</div>
+        <div class="fw-semibold">{{ mem.TOTAL|default:"—" }} MB</div>
+      </div>
+      <div class="col">
+        <div class="small text-muted">Used</div>
+        <div class="fw-semibold text-warning">{{ mem.USED|default:"—" }} MB</div>
+      </div>
+      <div class="col">
+        <div class="small text-muted">Free</div>
+        <div class="fw-semibold text-success">{{ mem.FREE|default:"—" }} MB</div>
+      </div>
+      <div class="col">
+        <div class="small text-muted">Cache</div>
+        <div class="fw-semibold text-info">{{ mem.CACHE|default:"—" }} MB</div>
+      </div>
+      <div class="col">
+        <div class="small text-muted">Buffers</div>
+        <div class="fw-semibold">{{ mem.BUFFERS|default:"—" }} MB</div>
+      </div>
+      <div class="col">
+        <div class="small text-muted">Available</div>
+        <div class="fw-semibold text-primary">{{ mem.AVAILABLE|default:"—" }} MB</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-2">No memory data available.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Container Stats ─────────────────────────────────────────────────── -->
+<div class="card mb-3">
+  <div class="card-header">
+    <i class="bi bi-box me-1"></i> Container Stats
+    <span class="badge bg-secondary ms-2">{{ stats_rows|length }}</span>
+  </div>
+  <div class="card-body p-0">
+    {% if stats_rows %}
+    <div style="max-height:260px;overflow-y:auto;">
+      <table class="table table-hover mb-0 tbl-mono">
+        <thead class="table-dark sticky-top">
+          <tr>
+            <th>Namespace</th>
+            <th>ID</th>
+            <th>Memory (MB)</th>
+            <th>CPU</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in stats_rows %}
+          <tr>
+            <td class="text-muted">{{ row.NAMESPACE|default:"" }}</td>
+            <td class="text-info" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                title="{{ row.ID|default:'' }}">{{ row.ID|default:"" }}</td>
+            <td>{{ row.MEMORY_MB_|default:"—" }}</td>
+            <td class="text-warning">{{ row.CPU|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-3">No container stats available.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Processes ───────────────────────────────────────────────────────── -->
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-list-task me-1"></i> Processes
+    <span class="badge bg-secondary ms-2">{{ proc_rows|length }}</span>
+  </div>
+  <div class="card-body p-0">
+    {% if proc_rows %}
+    <div style="max-height:340px;overflow-y:auto;">
+      <table class="table table-hover mb-0 tbl-mono">
+        <thead class="table-dark sticky-top">
+          <tr>
+            <th>PID</th>
+            <th>State</th>
+            <th>Threads</th>
+            <th>CPU Time</th>
+            <th>VirtMem</th>
+            <th>ResMem</th>
+            <th>Command</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in proc_rows %}
+          <tr>
+            <td class="text-muted">{{ row.PID|default:"" }}</td>
+            <td>
+              <span class="badge {% if row.STATE == 'S' %}bg-secondary{% elif row.STATE == 'R' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                {{ row.STATE|default:"" }}
+              </span>
+            </td>
+            <td>{{ row.THREADS|default:"" }}</td>
+            <td class="text-warning">{{ row.CPU_TIME|default:"—" }}</td>
+            <td class="text-muted">{{ row.VIRTMEM|default:"—" }}</td>
+            <td class="text-info">{{ row.RESMEM|default:"—" }}</td>
+            <td class="text-white" style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                title="{{ row.COMMAND|default:'' }}">
+              {{ row.COMMAND|default:"—" }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-3">No process data available.</div>
+    {% endif %}
+  </div>
+</div>

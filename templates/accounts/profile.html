@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Users – Talos Dashboard{% endblock %}
+{% block header %}User Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h5 class="mb-0">User Management</h5>
+</div>
+<div class="row">
+  <div class="col-md-4">
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-person-circle" aria-hidden="true"></i>
+        <span>My Profile</span>
+      </div>
+      <div class="card-body">
+        <dl class="mb-0">
+          <dt class="text-muted small">Username</dt>
+          <dd class="fw-semibold">{{ user.username }}</dd>
+          <dt class="text-muted small">Email</dt>
+          <dd>{{ user.email|default:"—" }}</dd>
+          <dt class="text-muted small">Role</dt>
+          <dd><span class="badge bg-primary">{{ profile.get_role_display }}</span></dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  {% if profile.is_admin %}
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-people" aria-hidden="true"></i>
+        <span>All Users</span>
+      </div>
+      <div class="card-body p-0">
+        {% if users %}
+        <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Username</th><th>Email</th><th>Role</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for up in users %}
+            <tr>
+              <td>{{ up.user.username }}</td>
+              <td>{{ up.user.email|default:"—" }}</td>
+              <td><span class="badge bg-secondary">{{ up.get_role_display }}</span></td>
+              <td>
+                {% if up.user != user %}
+                <form method="post" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="user_id" value="{{ up.user.id }}">
+                  <label for="role-select-{{ up.user.id }}" class="visually-hidden">Role for {{ up.user.username }}</label>
+                  <select name="role" id="role-select-{{ up.user.id }}"
+                          class="form-select form-select-sm d-inline-block w-auto me-1">
+                    {% for val, label in up.ROLE_CHOICES %}
+                      <option value="{{ val }}" {% if up.role == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                </form>
+                {% else %}
+                  <span class="text-muted small">(you)</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-people fs-1 d-block mb-2 opacity-25" aria-hidden="true"></i>
+          No users found.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

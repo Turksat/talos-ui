@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Apply Config – {{ node.hostname|default:node.ip_address }}{% endblock %}
+{% block header %}Apply Config: {{ node.hostname|default:node.ip_address }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/material-darker.min.css">
+<style>
+  .CodeMirror {
+    height: 500px;
+    border: 1px solid #2d3138;
+    border-radius: .375rem;
+    font-size: .85rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="mb-1">
+      <i class="bi bi-upload me-1"></i>
+      Apply Configuration
+    </h5>
+    <span class="text-muted small">{{ node.ip_address }} | {{ cluster.name }}</span>
+  </div>
+  <a href="{% url 'clusters:node_detail' cluster.pk node.ip_address %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i> Back to Node
+  </a>
+</div>
+
+{% if form.errors %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+  <strong>Validation errors:</strong>
+  <ul class="mb-0 mt-1">
+    {% for field, errors in form.errors.items %}
+      {% for error in errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    {% endfor %}
+  </ul>
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<form method="post" action="{% url 'clusters:node_apply_config' cluster.pk node.ip_address %}" id="apply-config-form">
+  {% csrf_token %}
+
+  <!-- Options -->
+  <div class="card mb-3">
+    <div class="card-header py-2">
+      <i class="bi bi-sliders me-1"></i> Options
+    </div>
+    <div class="card-body">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="insecure" id="id_insecure"
+               {% if form.insecure.value %}checked{% endif %}>
+        <label class="form-check-label" for="id_insecure">
+          <i class="bi bi-shield-exclamation me-1"></i>
+          Insecure Mode <code>(--insecure)</code>
+        </label>
+        <div class="form-text text-muted">
+          Only use when applying configuration for the first time or when the node does not yet have a trusted certificate.
+        </div>
+      </div>
+
+      <!-- Insecure warning (shown when checkbox is checked) -->
+      <div class="alert alert-warning mt-3 mb-0" id="insecure-warning" style="display: none;">
+        <i class="bi bi-shield-exclamation me-1"></i>
+        <strong>Warning:</strong> Insecure mode disables TLS verification. Only use this for initial node provisioning.
+      </div>
+    </div>
+  </div>
+
+  <!-- Config Editor -->
+  <div class="card mb-3">
+    <div class="card-header py-2">
+      <i class="bi bi-code-slash me-1"></i> Node Configuration (YAML)
+    </div>
+    <div class="card-body p-0">
+      <textarea name="config_content" id="config-editor" style="display:none">{{ form.config_content.value|default:"" }}</textarea>
+    </div>
+  </div>
+
+  <!-- Submit -->
+  <div class="d-flex justify-content-between align-items-center">
+    <span class="text-muted small">
+      <i class="bi bi-info-circle me-1"></i>
+      This will apply the configuration to the node. The node may reboot during the process.
+    </span>
+    <div class="d-flex gap-2">
+      <a href="{% url 'clusters:node_detail' cluster.pk node.ip_address %}" class="btn btn-secondary">
+        Cancel
+      </a>
+      <button type="submit" class="btn btn-primary" id="btn-apply"
+              onclick="return confirm('Apply this configuration to {{ node.hostname|default:node.ip_address }}?')">
+        <i class="bi bi-upload me-1"></i> Apply Configuration
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/yaml/yaml.min.js"></script>
+<script>
+(function() {
+  var textarea = document.getElementById('config-editor');
+  var editor = CodeMirror.fromTextArea(textarea, {
+    mode: 'yaml',
+    theme: 'material-darker',
+    lineNumbers: true,
+    lineWrapping: true,
+    tabSize: 2,
+    indentWithTabs: false,
+    matchBrackets: true,
+    extraKeys: {
+      'Tab': function(cm) {
+        cm.replaceSelection('  ', 'end');
+      }
+    }
+  });
+
+  // Sync editor content before form submit; disable button to prevent double-submit
+  document.getElementById('apply-config-form').addEventListener('submit', function() {
+    editor.save();
+    var btn = document.getElementById('btn-apply');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Applying…'; }
+  });
+
+  // Toggle insecure warning
+  var insecureCheckbox = document.getElementById('id_insecure');
+  var insecureWarning = document.getElementById('insecure-warning');
+
+  function toggleInsecureWarning() {
+    insecureWarning.style.display = insecureCheckbox.checked ? 'block' : 'none';
+  }
+
+  insecureCheckbox.addEventListener('change', toggleInsecureWarning);
+  toggleInsecureWarning(); // Initialize on page load
+})();
+</script>
+{% endblock %}

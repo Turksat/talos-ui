@@ -1,0 +1,137 @@
+{% comment %}
+Partial template for a network configuration tab in the bootstrap wizard.
+Required context variable: tab_prefix ("cp" or "worker")
+{% endcomment %}
+<div class="mb-3">
+  <div class="form-check form-switch">
+    <input class="form-check-input" type="checkbox" role="switch"
+           id="{{ tab_prefix }}-net-enabled"
+           onchange="netToggleEnable('{{ tab_prefix }}')">
+    <label class="form-check-label fw-semibold" for="{{ tab_prefix }}-net-enabled">
+      Enable Network Configuration
+    </label>
+  </div>
+  <div class="form-text">When disabled, default Talos network settings are used.</div>
+</div>
+
+<div id="{{ tab_prefix }}-net-body" style="display:none;">
+
+  <!-- Interface Type -->
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Interface Type</label>
+    <div class="d-flex gap-4">
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="{{ tab_prefix }}-net-type"
+               id="{{ tab_prefix }}-type-physical" value="physical" checked
+               onchange="netToggleType('{{ tab_prefix }}')">
+        <label class="form-check-label" for="{{ tab_prefix }}-type-physical">
+          <i class="bi bi-ethernet me-1"></i> Physical NIC
+        </label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="{{ tab_prefix }}-net-type"
+               id="{{ tab_prefix }}-type-bond" value="bond"
+               onchange="netToggleType('{{ tab_prefix }}')">
+        <label class="form-check-label" for="{{ tab_prefix }}-type-bond">
+          <i class="bi bi-diagram-2 me-1"></i> Bond
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Physical NIC section -->
+  <div id="{{ tab_prefix }}-physical-section" class="net-section visible mb-3">
+    <label class="form-label" for="{{ tab_prefix }}-nic-name">NIC Name</label>
+    <input type="text" class="form-control form-control-sm w-auto"
+           id="{{ tab_prefix }}-nic-name" placeholder="eth0" style="max-width:200px;">
+  </div>
+
+  <!-- Bond section -->
+  <div id="{{ tab_prefix }}-bond-section" class="net-section mb-3">
+    <div class="row g-3">
+      <div class="col-sm-4">
+        <label class="form-label" for="{{ tab_prefix }}-bond-name">Bond Name</label>
+        <input type="text" class="form-control form-control-sm"
+               id="{{ tab_prefix }}-bond-name" placeholder="bond0">
+      </div>
+      <div class="col-sm-8">
+        <label class="form-label" for="{{ tab_prefix }}-bond-members">Member NICs <span class="text-muted">(comma-separated)</span></label>
+        <input type="text" class="form-control form-control-sm"
+               id="{{ tab_prefix }}-bond-members" placeholder="eth0, eth1">
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label" for="{{ tab_prefix }}-bond-mode">Bond Mode</label>
+        <select class="form-select form-select-sm" id="{{ tab_prefix }}-bond-mode"
+                onchange="netToggleLacpRate('{{ tab_prefix }}')">
+          <option value="802.3ad">802.3ad (LACP)</option>
+          <option value="active-backup">active-backup</option>
+          <option value="balance-rr">balance-rr</option>
+          <option value="balance-xor">balance-xor</option>
+        </select>
+      </div>
+      <div class="col-sm-4" id="{{ tab_prefix }}-lacp-row">
+        <label class="form-label" for="{{ tab_prefix }}-lacp-rate">LACP Rate</label>
+        <select class="form-select form-select-sm" id="{{ tab_prefix }}-lacp-rate">
+          <option value="fast">fast</option>
+          <option value="slow">slow</option>
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label" for="{{ tab_prefix }}-miimon">MII Monitor (ms)</label>
+        <input type="number" class="form-control form-control-sm"
+               id="{{ tab_prefix }}-miimon" value="100" min="0">
+      </div>
+    </div>
+  </div>
+
+  <hr class="my-3">
+
+  <!-- IP / Routing -->
+  <div class="row g-3 mb-3">
+    <div class="col-sm-3">
+      <label class="form-label" for="{{ tab_prefix }}-prefix">
+        Subnet Prefix
+        <i class="bi bi-info-circle text-muted small"
+           title="Combined with the node IP, e.g. 24 → 192.168.1.10/24"
+           data-bs-toggle="tooltip"></i>
+      </label>
+      <div class="input-group input-group-sm" style="max-width:120px;">
+        <span class="input-group-text">/</span>
+        <input type="number" class="form-control" id="{{ tab_prefix }}-prefix"
+               value="24" min="0" max="32">
+      </div>
+    </div>
+    <div class="col-sm-4">
+      <label class="form-label" for="{{ tab_prefix }}-gateway">Gateway</label>
+      <input type="text" class="form-control form-control-sm"
+             id="{{ tab_prefix }}-gateway" placeholder="192.168.1.1">
+    </div>
+    <div class="col-sm-5">
+      <label class="form-label" for="{{ tab_prefix }}-dns">
+        DNS Servers <span class="text-muted">(comma-separated)</span>
+      </label>
+      <input type="text" class="form-control form-control-sm"
+             id="{{ tab_prefix }}-dns" placeholder="8.8.8.8, 1.1.1.1">
+    </div>
+  </div>
+
+  <hr class="my-3">
+
+  <!-- VLANs -->
+  <div class="mb-2 d-flex align-items-center justify-content-between">
+    <span class="fw-semibold"><i class="bi bi-layers me-1"></i> VLANs</span>
+    <button type="button" class="btn btn-outline-secondary btn-sm"
+            onclick="addVlanRow('{{ tab_prefix }}')">
+      <i class="bi bi-plus-lg"></i> Add VLAN
+    </button>
+  </div>
+  <div class="vlan-row-header">
+    <span>VLAN ID</span>
+    <span>DHCP</span>
+    <span>IP / CIDR</span>
+    <span></span>
+  </div>
+  <div id="{{ tab_prefix }}-vlan-container"></div>
+  <div class="form-text mt-1">Leave empty if no VLANs are needed.</div>
+
+</div><!-- /#{{ tab_prefix }}-net-body -->

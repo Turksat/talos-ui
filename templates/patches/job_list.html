@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Patch Jobs – Talos{% endblock %}
+{% block header %}Patch Jobs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="mb-0">Patch Jobs</h5>
+    <p class="text-muted small mb-0">History of all patch applications.</p>
+  </div>
+  <a href="{% url 'patches:list' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i> Templates
+  </a>
+</div>
+
+{% if jobs %}
+<div class="card">
+  <div class="card-body p-0">
+  <div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Patch</th>
+        <th>Cluster</th>
+        <th>Target Role</th>
+        <th>Status</th>
+        <th>Initiated By</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+      <tr>
+        <td class="text-muted small">{{ job.pk }}</td>
+        <td>{{ job.patch_template.name|default:"Ad-hoc" }}</td>
+        <td>{{ job.cluster.name }}</td>
+        <td>
+          {% if job.target_role == 'controlplane' %}
+            <span class="badge bg-warning text-dark">Control Plane</span>
+          {% elif job.target_role == 'worker' %}
+            <span class="badge bg-secondary">Worker</span>
+          {% else %}
+            <span class="badge bg-primary">All</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="badge badge-status-{{ job.status }}">{{ job.get_status_display }}</span>
+        </td>
+        <td class="small">{{ job.initiated_by.username|default:"–" }}</td>
+        <td class="small text-muted">{{ job.created_at|date:"Y-m-d H:i" }}</td>
+        <td>
+          <a href="{% url 'patches:job_detail' job.pk %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-terminal"></i> Console
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body">
+    <div class="text-center py-4 text-muted">
+      <i class="bi bi-list-task fs-1 d-block mb-2 opacity-25" aria-hidden="true"></i>
+      No patch jobs yet.
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

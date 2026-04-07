@@ -1,0 +1,31 @@
+{% for cluster in clusters %}
+  {% for node in cluster.nodes.all %}
+  <tr>
+    <td>
+      <a href="{% url 'clusters:node_detail' cluster.pk node.ip_address %}">
+        {{ node.hostname|default:node.ip_address }}
+      </a>
+      <div class="text-muted small">{{ node.ip_address }}</div>
+    </td>
+    <td>{{ cluster.name }}</td>
+    <td>
+      <span class="badge bg-{% if node.role == 'controlplane' %}warning text-dark{% else %}secondary{% endif %}">
+        {{ node.get_role_display }}
+      </span>
+    </td>
+    <td>
+      <span class="badge bg-{% if node.status == 'running' %}success{% elif node.status == 'unknown' %}secondary{% else %}danger{% endif %}">
+        {{ node.status }}
+      </span>
+    </td>
+    <td>{{ node.talos_version|default:"—" }}</td>
+    <td>{{ node.k8s_version|default:"—" }}</td>
+    <td class="text-muted small">
+      {% if node.last_seen %}{{ node.last_seen|timesince }} ago{% else %}Never{% endif %}
+    </td>
+  </tr>
+  {% empty %}
+  {% endfor %}
+{% empty %}
+<tr><td colspan="7" class="text-center text-muted py-3">No nodes.</td></tr>
+{% endfor %}

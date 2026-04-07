@@ -1,0 +1,61 @@
+services:
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  django:
+    build:
+      context: .
+      args:
+        TALOS_VERSION: ${TALOS_VERSION:-v1.9.5}
+    restart: unless-stopped
+    command: daphne -b 0.0.0.0 -p 8000 talos_dashboard.asgi:application
+    network_mode: host
+    volumes:
+      - sqlite_data:/app/data
+      - static_files:/app/staticfiles
+    environment:
+      DJANGO_SETTINGS_MODULE: talos_dashboard.settings.development
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+      REDIS_URL: redis://localhost:6379/0
+      DB_PATH: /app/data/db.sqlite3
+      DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME:-admin}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-admin}
+      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:-admin@localhost}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  celery:
+    build:
+      context: .
+      args:
+        TALOS_VERSION: ${TALOS_VERSION:-v1.9.5}
+    restart: unless-stopped
+    command: python -m celery -A talos_dashboard worker -l info --concurrency 2
+    entrypoint: []
+    network_mode: host
+    volumes:
+      - sqlite_data:/app/data
+    environment:
+      DJANGO_SETTINGS_MODULE: talos_dashboard.settings.development
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      REDIS_URL: redis://localhost:6379/0
+      DB_PATH: /app/data/db.sqlite3
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data:
+  sqlite_data:
+  static_files:

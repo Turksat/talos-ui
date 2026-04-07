@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Nodes – {{ cluster.name }}{% endblock %}
+{% block header %}{{ cluster.name }} – Nodes{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="mb-1">Nodes in {{ cluster.name }}</h5>
+    <a href="{% url 'clusters:detail' cluster.pk %}" class="text-muted small">
+      <i class="bi bi-arrow-left"></i> Back to cluster
+    </a>
+  </div>
+  {% if user.profile.is_operator %}
+  <a href="{% url 'clusters:node_add' cluster.pk %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg"></i> Add Node
+  </a>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>IP / Hostname</th><th>Role</th><th>Status</th>
+            <th>Talos</th><th>K8s</th><th>Last Seen</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for node in nodes %}
+          <tr>
+            <td>
+              <a href="{% url 'clusters:node_detail' cluster.pk node.ip_address %}">
+                {{ node.hostname|default:node.ip_address }}
+              </a>
+              {% if node.hostname %}<div class="text-muted small">{{ node.ip_address }}</div>{% endif %}
+            </td>
+            <td>
+              <span class="badge {% if node.role == 'controlplane' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                {{ node.get_role_display }}
+              </span>
+            </td>
+            <td>
+              <span class="badge {% if node.status == 'running' %}bg-success{% elif node.status == 'unknown' %}bg-secondary{% else %}bg-danger{% endif %}">
+                {{ node.status }}
+              </span>
+            </td>
+            <td>{{ node.talos_version|default:"—" }}</td>
+            <td>{{ node.k8s_version|default:"—" }}</td>
+            <td class="text-muted small">
+              {% if node.last_seen %}{{ node.last_seen|timesince }} ago{% else %}Never{% endif %}
+            </td>
+            <td>
+              <a href="{% url 'clusters:node_detail' cluster.pk node.ip_address %}"
+                 class="btn btn-sm btn-outline-primary">View</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No nodes found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

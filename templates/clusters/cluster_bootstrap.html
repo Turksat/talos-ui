@@ -1,0 +1,585 @@
+{% extends "base.html" %}
+{% block title %}Bootstrap Cluster – Talos{% endblock %}
+{% block header %}Bootstrap New Cluster{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<style>
+  .wizard-stepper { display:flex; justify-content:center; gap:0; margin-bottom:2rem; }
+  .wizard-step { display:flex; align-items:center; gap:.5rem; }
+  .wizard-step .step-number {
+    width:36px; height:36px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; font-weight:bold; font-size:.9rem;
+    background:#2d3138; color:#adb5bd; border:2px solid #2d3138; transition:all .2s;
+  }
+  .wizard-step.active .step-number  { background:#0d6efd; border-color:#0d6efd; color:#fff; }
+  .wizard-step.done .step-number    { background:#198754; border-color:#198754; color:#fff; }
+  .wizard-step .step-label          { color:#adb5bd; font-size:.85rem; }
+  .wizard-step.active .step-label   { color:#fff; font-weight:500; }
+  .wizard-step.done .step-label     { color:#198754; }
+  .step-connector { width:60px; height:2px; background:#2d3138; align-self:center; margin:0 .5rem; }
+  .step-connector.done { background:#198754; }
+  .node-row { display:grid; grid-template-columns:1fr 1fr auto auto; gap:.5rem; margin-bottom:.35rem; align-items:center; }
+  .node-row-header { display:grid; grid-template-columns:1fr 1fr auto auto; gap:.5rem; margin-bottom:.25rem; }
+  .node-row-header span { font-size:.75rem; color:#adb5bd; padding-left:2px; }
+  .node-wrapper { margin-bottom:.5rem; }
+  .node-override-panel { border:1px solid #3d4148; border-radius:.375rem; padding:.75rem; margin-top:.35rem; background:#1e2128; }
+  .node-override-panel .small-label { font-size:.72rem; color:#adb5bd; }
+  .CodeMirror { height:450px; font-size:.82rem; }
+  #net-config-collapse.show ~ .card-header #net-config-chevron,
+  .net-config-chevron-rotated { transform: rotate(90deg); }
+  .vlan-row { display:grid; grid-template-columns:80px auto 1fr auto; gap:.5rem; align-items:center; margin-bottom:.4rem; }
+  .vlan-row-header { display:grid; grid-template-columns:80px auto 1fr auto; gap:.5rem; margin-bottom:.25rem; }
+  .vlan-row-header span { font-size:.75rem; color:#adb5bd; padding-left:2px; }
+  .net-section { display:none; }
+  .net-section.visible { display:block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="mb-1"><i class="bi bi-rocket-takeoff me-1"></i> Bootstrap New Cluster</h5>
+    <span class="text-muted small">Generate and apply Talos configuration to new nodes</span>
+  </div>
+  <a href="{% url 'clusters:list' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i> Back
+  </a>
+</div>
+
+<!-- Stepper -->
+<div class="wizard-stepper">
+  <div class="wizard-step {% if wizard_step == 1 %}active{% elif wizard_step > 1 %}done{% endif %}">
+    <span class="step-number">{% if wizard_step > 1 %}<i class="bi bi-check"></i>{% else %}1{% endif %}</span>
+    <span class="step-label">Cluster Info</span>
+  </div>
+  <div class="step-connector {% if wizard_step > 1 %}done{% endif %}"></div>
+  <div class="wizard-step {% if wizard_step == 2 %}active{% elif wizard_step > 2 %}done{% endif %}">
+    <span class="step-number">{% if wizard_step > 2 %}<i class="bi bi-check"></i>{% else %}2{% endif %}</span>
+    <span class="step-label">Edit Configs</span>
+  </div>
+  <div class="step-connector {% if wizard_step > 2 %}done{% endif %}"></div>
+  <div class="wizard-step {% if wizard_step == 3 %}active{% endif %}">
+    <span class="step-number">3</span>
+    <span class="step-label">Apply</span>
+  </div>
+</div>
+
+{% if wizard_step == 1 or not wizard_step %}
+<!-- ═══════════════ STEP 1: Cluster Info ═══════════════ -->
+{% if form.errors %}
+<div class="alert alert-danger">
+  <strong>Validation errors:</strong>
+  <ul class="mb-0 mt-1">
+    {% for field, errors in form.errors.items %}{% for e in errors %}<li>{{ e }}</li>{% endfor %}{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<form method="post" id="step1-form">
+  {% csrf_token %}
+  <input type="hidden" name="wizard_step" value="1">
+  <input type="hidden" name="controlplane_nodes" id="cp-nodes-hidden">
+  <input type="hidden" name="worker_nodes" id="worker-nodes-hidden">
+  <input type="hidden" name="cp_net_config" id="cp-net-hidden">
+  <input type="hidden" name="worker_net_config" id="worker-net-hidden">
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-info-circle me-1"></i> Cluster Details</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Cluster Name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" name="cluster_name"
+                 value="{{ form.cluster_name.value|default:'' }}" placeholder="my-cluster" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Endpoint URL <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" name="endpoint"
+                 value="{{ form.endpoint.value|default:'' }}" placeholder="192.168.1.10:6443" required>
+          <div class="form-text">https:// prefix added automatically if omitted.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header"><i class="bi bi-hdd-stack me-1"></i> Control Plane Nodes</div>
+        <div class="card-body">
+          <div class="node-row-header">
+            <span>IP Address <span class="text-danger">*</span></span>
+            <span>Hostname <span class="text-muted">(optional)</span></span>
+            <span title="Per-node network override"><i class="bi bi-diagram-3 text-muted"></i></span>
+            <span></span>
+          </div>
+          <div id="cp-container"></div>
+          <button type="button" class="btn btn-outline-primary btn-sm mt-1" onclick="addNodeRow('cp-container','cp')">
+            <i class="bi bi-plus-lg"></i> Add Node
+          </button>
+          <div class="form-text mt-2">At least one required. First node will be bootstrapped.</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header"><i class="bi bi-server me-1"></i> Worker Nodes</div>
+        <div class="card-body">
+          <div class="node-row-header">
+            <span>IP Address</span>
+            <span>Hostname <span class="text-muted">(optional)</span></span>
+            <span title="Per-node network override"><i class="bi bi-diagram-3 text-muted"></i></span>
+            <span></span>
+          </div>
+          <div id="worker-container"></div>
+          <button type="button" class="btn btn-outline-primary btn-sm mt-1" onclick="addNodeRow('worker-container','worker')">
+            <i class="bi bi-plus-lg"></i> Add Node
+          </button>
+          <div class="form-text mt-2">Optional.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Advanced: Network Configuration (Bond / VLAN) -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <button class="btn btn-link p-0 text-decoration-none d-flex align-items-center gap-2 w-100"
+              type="button" data-bs-toggle="collapse" data-bs-target="#net-config-collapse"
+              aria-expanded="false" aria-controls="net-config-collapse">
+        <i class="bi bi-chevron-right" id="net-config-chevron" style="transition:transform .2s;"></i>
+        <span><i class="bi bi-diagram-3 me-1"></i> Advanced: Network Configuration (Bond / VLAN)</span>
+        <span class="badge bg-secondary ms-2">Default for all nodes — override per node with ⚙</span>
+      </button>
+    </div>
+    <div class="collapse" id="net-config-collapse">
+      <div class="card-body">
+        <!-- Bootstrap tabs: CP / Worker -->
+        <ul class="nav nav-tabs mb-3" id="net-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="net-cp-tab" data-bs-toggle="tab"
+                    data-bs-target="#net-cp-pane" type="button" role="tab">
+              <i class="bi bi-hdd-stack me-1"></i> Control Plane
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="net-worker-tab" data-bs-toggle="tab"
+                    data-bs-target="#net-worker-pane" type="button" role="tab">
+              <i class="bi bi-server me-1"></i> Workers
+            </button>
+          </li>
+        </ul>
+        <div class="tab-content" id="net-tabs-content">
+
+          <!-- Control Plane tab -->
+          <div class="tab-pane fade show active" id="net-cp-pane" role="tabpanel">
+            {% include "clusters/_net_config_tab.html" with tab_prefix="cp" %}
+          </div>
+
+          <!-- Worker tab -->
+          <div class="tab-pane fade" id="net-worker-pane" role="tabpanel">
+            {% include "clusters/_net_config_tab.html" with tab_prefix="worker" %}
+          </div>
+
+        </div><!-- /.tab-content -->
+      </div><!-- /.card-body -->
+    </div><!-- /.collapse -->
+  </div>
+
+  <div class="d-flex justify-content-end">
+    <button type="button" class="btn btn-primary" onclick="submitStep1()">
+      Generate Configs <i class="bi bi-arrow-right ms-1"></i>
+    </button>
+  </div>
+</form>
+
+{% elif wizard_step == 2 %}
+<!-- ═══════════════ STEP 2: Edit Configs ═══════════════ -->
+<div class="alert alert-info d-flex gap-2 align-items-start">
+  <i class="bi bi-info-circle-fill mt-1"></i>
+  <div>
+    Configs generated for <strong>{{ cluster_name }}</strong> ({{ endpoint }}).
+    Edit below before applying.<br>
+    <strong>Control Plane:</strong>
+    {% for n in cp_nodes %}{{ n.ip }}{% if n.hostname %} ({{ n.hostname }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
+    {% if worker_nodes %} &nbsp;|&nbsp; <strong>Workers:</strong>
+    {% for n in worker_nodes %}{{ n.ip }}{% if n.hostname %} ({{ n.hostname }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+  </div>
+</div>
+
+<form method="post" id="step2-form">
+  {% csrf_token %}
+  <input type="hidden" name="wizard_step" value="2">
+  <textarea id="cp-yaml-raw" name="cp_yaml" style="display:none">{{ cp_yaml }}</textarea>
+  <textarea id="worker-yaml-raw" name="worker_yaml" style="display:none">{{ worker_yaml }}</textarea>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header d-flex align-items-center gap-2">
+          <span class="badge bg-warning text-dark">Control Plane</span>
+          <span class="small">controlplane.yaml</span>
+        </div>
+        <div class="card-body p-0">
+          <div id="cp-editor"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header d-flex align-items-center gap-2">
+          <span class="badge bg-secondary">Worker</span>
+          <span class="small">worker.yaml</span>
+        </div>
+        <div class="card-body p-0">
+          <div id="worker-editor"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-warning d-flex gap-2">
+    <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+    <div>
+      <strong>Warning:</strong> This will:
+      <ol class="mb-0 mt-1">
+        <li>Apply configs to all listed nodes (existing configs overwritten)</li>
+        <li>Wait 10 seconds for nodes to initialize</li>
+        <li>Run <code>talosctl bootstrap</code> on <strong>{{ cp_nodes.0.ip }}</strong> to start etcd</li>
+      </ol>
+      Nodes must be booted from Talos ISO and in maintenance mode.
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between">
+    <a href="{% url 'clusters:bootstrap' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i> Start Over
+    </a>
+    <button type="button" class="btn btn-success" onclick="submitStep2()">
+      <i class="bi bi-rocket-takeoff me-1"></i> Apply to Nodes
+    </button>
+  </div>
+</form>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{% if wizard_step == 1 or not wizard_step %}
+<script>
+/* ── Node rows ─────────────────────────────────────────────────────────── */
+let _nodeCounters = {cp: 0, worker: 0};
+
+function addNodeRow(containerId, role) {
+  const container = document.getElementById(containerId);
+  const idx = _nodeCounters[role]++;
+  const netPrefix = `node-${role}-${idx}`;
+  const ipPh = role === 'cp' ? `192.168.1.${10 + idx}` : `192.168.1.${20 + idx}`;
+  const hPh  = role === 'cp' ? `cp-${idx + 1}` : `worker-${idx + 1}`;
+  const panelId = `override-panel-${netPrefix}`;
+  const toggleId = `override-toggle-${netPrefix}`;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'node-wrapper';
+  wrapper.dataset.netPrefix = netPrefix;
+  wrapper.innerHTML = `
+    <div class="node-row">
+      <input type="text" class="form-control form-control-sm ip-input"
+             placeholder="${ipPh}" pattern="^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$">
+      <input type="text" class="form-control form-control-sm hostname-input"
+             placeholder="${hPh}">
+      <div class="form-check form-switch mb-0" title="Per-node network override">
+        <input class="form-check-input node-net-override-toggle" type="checkbox"
+               id="${toggleId}" style="cursor:pointer;"
+               onchange="toggleNodeOverride('${panelId}', this)">
+        <label class="form-check-label small text-muted" for="${toggleId}" style="cursor:pointer;">⚙</label>
+      </div>
+      <button type="button" class="btn btn-outline-danger btn-sm"
+              onclick="this.closest('.node-wrapper').remove()">
+        <i class="bi bi-trash"></i>
+      </button>
+    </div>
+    <div id="${panelId}" class="node-override-panel" style="display:none;">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="small fw-semibold"><i class="bi bi-diagram-3 me-1"></i> Network Override for this node</span>
+        <span class="badge bg-warning text-dark small">Overrides role default</span>
+      </div>
+      ${buildNetConfigHTML(netPrefix)}
+    </div>`;
+  container.appendChild(wrapper);
+  wrapper.querySelector('.ip-input').focus();
+}
+
+function toggleNodeOverride(panelId, checkbox) {
+  document.getElementById(panelId).style.display = checkbox.checked ? '' : 'none';
+}
+
+function collectNodes(containerId) {
+  return Array.from(document.getElementById(containerId).querySelectorAll('.node-wrapper'))
+    .map(wrapper => {
+      const ip = wrapper.querySelector('.ip-input').value.trim();
+      if (!ip) return null;
+      const overrideToggle = wrapper.querySelector('.node-net-override-toggle');
+      const overrideEnabled = overrideToggle && overrideToggle.checked;
+      return {
+        ip: ip,
+        hostname: wrapper.querySelector('.hostname-input').value.trim(),
+        net_config: overrideEnabled ? JSON.parse(collectNetConfig(wrapper.dataset.netPrefix)) : null,
+      };
+    })
+    .filter(n => n !== null);
+}
+
+/* ── Build net config panel HTML (for per-node override) ────────────────── */
+function buildNetConfigHTML(p) {
+  return `
+    <div class="mb-2">
+      <label class="small-label">Interface Type</label>
+      <div class="d-flex gap-3 mt-1">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="${p}-net-type" id="${p}-type-physical" value="physical" checked
+                 onchange="netToggleType('${p}')">
+          <label class="form-check-label small" for="${p}-type-physical">Physical NIC</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="${p}-net-type" id="${p}-type-bond" value="bond"
+                 onchange="netToggleType('${p}')">
+          <label class="form-check-label small" for="${p}-type-bond">Bond</label>
+        </div>
+      </div>
+    </div>
+    <div id="${p}-physical-section" class="net-section visible mb-2">
+      <label class="small-label">NIC Name</label>
+      <input type="text" class="form-control form-control-sm mt-1" id="${p}-nic-name" placeholder="eth0" style="max-width:160px;">
+    </div>
+    <div id="${p}-bond-section" class="net-section mb-2">
+      <div class="row g-2">
+        <div class="col-sm-4">
+          <label class="small-label">Bond Name</label>
+          <input type="text" class="form-control form-control-sm mt-1" id="${p}-bond-name" placeholder="bond0">
+        </div>
+        <div class="col-sm-8">
+          <label class="small-label">Member NICs (comma-separated)</label>
+          <input type="text" class="form-control form-control-sm mt-1" id="${p}-bond-members" placeholder="eth0, eth1">
+        </div>
+        <div class="col-sm-4">
+          <label class="small-label">Bond Mode</label>
+          <select class="form-select form-select-sm mt-1" id="${p}-bond-mode"
+                  onchange="netToggleLacpRate('${p}')">
+            <option value="802.3ad">802.3ad (LACP)</option>
+            <option value="active-backup">active-backup</option>
+            <option value="balance-rr">balance-rr</option>
+            <option value="balance-xor">balance-xor</option>
+          </select>
+        </div>
+        <div class="col-sm-4" id="${p}-lacp-row">
+          <label class="small-label">LACP Rate</label>
+          <select class="form-select form-select-sm mt-1" id="${p}-lacp-rate">
+            <option value="fast">fast</option>
+            <option value="slow">slow</option>
+          </select>
+        </div>
+        <div class="col-sm-4">
+          <label class="small-label">MII Monitor (ms)</label>
+          <input type="number" class="form-control form-control-sm mt-1" id="${p}-miimon" value="100" min="0">
+        </div>
+      </div>
+    </div>
+    <div class="row g-2 mb-2">
+      <div class="col-sm-3">
+        <label class="small-label">Prefix</label>
+        <div class="input-group input-group-sm mt-1" style="max-width:100px;">
+          <span class="input-group-text">/</span>
+          <input type="number" class="form-control" id="${p}-prefix" value="24" min="0" max="32">
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <label class="small-label">Gateway</label>
+        <input type="text" class="form-control form-control-sm mt-1" id="${p}-gateway" placeholder="192.168.1.1">
+      </div>
+      <div class="col-sm-5">
+        <label class="small-label">DNS Servers (comma-separated)</label>
+        <input type="text" class="form-control form-control-sm mt-1" id="${p}-dns" placeholder="8.8.8.8, 1.1.1.1">
+      </div>
+    </div>
+    <div class="mb-1 d-flex align-items-center justify-content-between">
+      <span class="small-label">VLANs</span>
+      <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+              onclick="addVlanRow('${p}')"><i class="bi bi-plus-lg"></i> VLAN</button>
+    </div>
+    <div class="vlan-row-header">
+      <span>VLAN ID</span><span>DHCP</span><span>IP / CIDR</span><span></span>
+    </div>
+    <div id="${p}-vlan-container"></div>`;
+}
+
+/* ── Network config tabs ────────────────────────────────────────────────── */
+function netToggleEnable(tabPrefix) {
+  const enabled = document.getElementById(`${tabPrefix}-net-enabled`).checked;
+  const body = document.getElementById(`${tabPrefix}-net-body`);
+  body.style.display = enabled ? '' : 'none';
+}
+
+function netToggleType(tabPrefix) {
+  const type = document.querySelector(`[name="${tabPrefix}-net-type"]:checked`);
+  if (!type) return;
+  const isPhysical = type.value === 'physical';
+  document.getElementById(`${tabPrefix}-physical-section`).classList.toggle('visible', isPhysical);
+  document.getElementById(`${tabPrefix}-bond-section`).classList.toggle('visible', !isPhysical);
+}
+
+function netToggleLacpRate(tabPrefix) {
+  const mode = document.getElementById(`${tabPrefix}-bond-mode`).value;
+  const row = document.getElementById(`${tabPrefix}-lacp-row`);
+  row.style.display = mode === '802.3ad' ? '' : 'none';
+}
+
+function addVlanRow(tabPrefix) {
+  const container = document.getElementById(`${tabPrefix}-vlan-container`);
+  const row = document.createElement('div');
+  row.className = 'vlan-row';
+  row.innerHTML = `
+    <input type="number" class="form-control form-control-sm vlan-id" placeholder="100" min="1" max="4094">
+    <div class="form-check">
+      <input class="form-check-input vlan-dhcp" type="checkbox"
+             onchange="toggleVlanIp(this)">
+      <label class="form-check-label small">DHCP</label>
+    </div>
+    <input type="text" class="form-control form-control-sm vlan-ip" placeholder="10.0.100.10/24">
+    <button type="button" class="btn btn-outline-danger btn-sm"
+            onclick="this.closest('.vlan-row').remove()">
+      <i class="bi bi-trash"></i>
+    </button>`;
+  container.appendChild(row);
+}
+
+function toggleVlanIp(checkbox) {
+  const ipInput = checkbox.closest('.vlan-row').querySelector('.vlan-ip');
+  ipInput.style.display = checkbox.checked ? 'none' : '';
+}
+
+function collectNetConfig(tabPrefix) {
+  const enabledEl = document.getElementById(`${tabPrefix}-net-enabled`);
+  // If no enable toggle exists (per-node panels), treat as enabled since
+  // the panel is already gated by the per-node override checkbox.
+  if (enabledEl && !enabledEl.checked) return JSON.stringify({enabled: false});
+
+  const typeEl = document.querySelector(`[name="${tabPrefix}-net-type"]:checked`);
+  const type = typeEl ? typeEl.value : 'physical';
+
+  const config = {
+    enabled: true,
+    type: type,
+  };
+
+  if (type === 'physical') {
+    config.interface = (document.getElementById(`${tabPrefix}-nic-name`).value || '').trim();
+  } else {
+    config.bond_name = (document.getElementById(`${tabPrefix}-bond-name`).value || '').trim();
+    const membersRaw = (document.getElementById(`${tabPrefix}-bond-members`).value || '').trim();
+    config.bond_members = membersRaw ? membersRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+    config.bond_mode = document.getElementById(`${tabPrefix}-bond-mode`).value;
+    config.lacp_rate = document.getElementById(`${tabPrefix}-lacp-rate`).value;
+    config.miimon = parseInt(document.getElementById(`${tabPrefix}-miimon`).value || '100', 10);
+  }
+
+  config.prefix = parseInt(document.getElementById(`${tabPrefix}-prefix`).value || '24', 10);
+  config.gateway = (document.getElementById(`${tabPrefix}-gateway`).value || '').trim();
+  const dnsRaw = (document.getElementById(`${tabPrefix}-dns`).value || '').trim();
+  config.nameservers = dnsRaw ? dnsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const vlans = [];
+  document.querySelectorAll(`#${tabPrefix}-vlan-container .vlan-row`).forEach(row => {
+    const idVal = parseInt(row.querySelector('.vlan-id').value || '0', 10);
+    if (!idVal) return;
+    const dhcp = row.querySelector('.vlan-dhcp').checked;
+    const address = dhcp ? '' : (row.querySelector('.vlan-ip').value || '').trim();
+    vlans.push({id: idVal, dhcp: dhcp, address: address});
+  });
+  config.vlans = vlans;
+
+  return JSON.stringify(config);
+}
+
+/* ── Chevron animation for collapse ────────────────────────────────────── */
+(function () {
+  const collapseEl = document.getElementById('net-config-collapse');
+  const chevron = document.getElementById('net-config-chevron');
+  if (collapseEl && chevron) {
+    collapseEl.addEventListener('show.bs.collapse', () => chevron.classList.add('net-config-chevron-rotated'));
+    collapseEl.addEventListener('hide.bs.collapse', () => chevron.classList.remove('net-config-chevron-rotated'));
+  }
+})();
+
+/* ── Submit ─────────────────────────────────────────────────────────────── */
+function submitStep1() {
+  const name = document.querySelector('[name=cluster_name]').value.trim();
+  const endpoint = document.querySelector('[name=endpoint]').value.trim();
+  if (!name || !endpoint) { alert('Cluster name and endpoint are required.'); return; }
+
+  const cpNodes = collectNodes('cp-container');
+  if (cpNodes.length === 0) { alert('At least one control plane node IP is required.'); return; }
+
+  const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+  const allNodes = [...cpNodes, ...collectNodes('worker-container')];
+  for (const n of allNodes) {
+    if (!ipRegex.test(n.ip)) { alert(`"${n.ip}" is not a valid IP address.`); return; }
+  }
+
+  // Encode nodes as JSON array [{ip, hostname, net_config}, ...]
+  document.getElementById('cp-nodes-hidden').value = JSON.stringify(cpNodes);
+  document.getElementById('worker-nodes-hidden').value = JSON.stringify(collectNodes('worker-container'));
+
+  // Encode network configs as JSON
+  document.getElementById('cp-net-hidden').value = collectNetConfig('cp');
+  document.getElementById('worker-net-hidden').value = collectNetConfig('worker');
+
+  const btn = document.querySelector('[onclick="submitStep1()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  document.getElementById('step1-form').submit();
+}
+
+// Initialize with one empty row
+addNodeRow('cp-container', 'cp');
+</script>
+
+{% elif wizard_step == 2 %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+<script>
+const cpRaw = document.getElementById('cp-yaml-raw');
+const workerRaw = document.getElementById('worker-yaml-raw');
+
+const cpEditor = CodeMirror(document.getElementById('cp-editor'), {
+  value: cpRaw.value,
+  mode: 'yaml',
+  theme: 'dracula',
+  lineNumbers: true,
+  indentUnit: 2,
+  tabSize: 2,
+});
+
+const workerEditor = CodeMirror(document.getElementById('worker-editor'), {
+  value: workerRaw.value,
+  mode: 'yaml',
+  theme: 'dracula',
+  lineNumbers: true,
+  indentUnit: 2,
+  tabSize: 2,
+});
+
+function submitStep2() {
+  if (!confirm('Apply configs to all listed nodes? This cannot be undone.')) return;
+  cpRaw.value = cpEditor.getValue();
+  workerRaw.value = workerEditor.getValue();
+  cpRaw.style.display = '';
+  workerRaw.style.display = '';
+  const btn = document.querySelector('[onclick="submitStep2()"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Applying…'; }
+  document.getElementById('step2-form').submit();
+}
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Upgrade Jobs – Talos{% endblock %}
+{% block header %}Upgrade Jobs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h5 class="mb-0">Upgrade Jobs</h5>
+  <div class="d-flex gap-2">
+    <a href="{% url 'upgrades:image' %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-plus-lg"></i> Image Upgrade
+    </a>
+    <a href="{% url 'upgrades:k8s' %}" class="btn btn-outline-info btn-sm">
+      <i class="bi bi-plus-lg"></i> K8s Upgrade
+    </a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>#</th><th>Type</th><th>Cluster</th><th>Target</th>
+            <th>Status</th><th>By</th><th>Created</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in jobs %}
+          <tr>
+            <td>{{ job.pk }}</td>
+            <td>{{ job.get_job_type_display }}</td>
+            <td>{{ job.cluster.name }}</td>
+            <td class="font-monospace small">
+              {% if job.job_type == 'image' %}{{ job.image_url|truncatechars:40 }}
+              {% else %}v{{ job.target_version }}
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge badge-status-{{ job.status }}">{{ job.get_status_display }}</span>
+            </td>
+            <td>{{ job.initiated_by.username }}</td>
+            <td class="text-muted small">{{ job.created_at|timesince }} ago</td>
+            <td>
+              <a href="{% url 'upgrades:job_detail' job.pk %}" class="btn btn-sm btn-outline-primary">
+                View
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="text-center text-muted py-4">No upgrade jobs yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Add Node – {{ cluster.name }}{% endblock %}
+{% block header %}Add Node to {{ cluster.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<style>
+  .CodeMirror { height: 400px; font-size: .85rem; border-radius: 0 0 .375rem .375rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <a href="{% url 'clusters:detail' cluster.pk %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i> Back to {{ cluster.name }}
+  </a>
+</div>
+
+<form method="post" id="node-add-form">
+  {% csrf_token %}
+  <input type="hidden" name="apply_config" id="apply-config-flag" value="0">
+
+  <div class="row g-4">
+
+    <!-- Node Info -->
+    <div class="col-md-5">
+      <div class="card">
+        <div class="card-header"><i class="bi bi-server me-1"></i> Node Details</div>
+        <div class="card-body d-flex flex-column gap-3">
+
+          <div>
+            <label class="form-label fw-semibold">IP Address <span class="text-danger">*</span></label>
+            <input type="text" name="ip_address"
+                   class="form-control font-monospace {% if node_form.ip_address.errors %}is-invalid{% endif %}"
+                   value="{{ node_form.ip_address.value|default:'' }}"
+                   placeholder="192.168.1.10" required>
+            {% for e in node_form.ip_address.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div>
+            <label class="form-label fw-semibold">Hostname <span class="text-muted small fw-normal">(optional)</span></label>
+            <input type="text" name="hostname"
+                   class="form-control {% if node_form.hostname.errors %}is-invalid{% endif %}"
+                   value="{{ node_form.hostname.value|default:'' }}"
+                   placeholder="talos-worker-01">
+            {% for e in node_form.hostname.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div>
+            <label class="form-label fw-semibold">Role <span class="text-danger">*</span></label>
+            <div class="d-flex gap-3 mt-1">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="role" id="role-worker"
+                       value="worker" {% if node_form.role.value != 'controlplane' %}checked{% endif %}>
+                <label class="form-check-label" for="role-worker">
+                  <span class="badge bg-secondary me-1">Worker</span>
+                  <small class="text-muted">Runs workloads</small>
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="role" id="role-cp"
+                       value="controlplane" {% if node_form.role.value == 'controlplane' %}checked{% endif %}>
+                <label class="form-check-label" for="role-cp">
+                  <span class="badge bg-warning text-dark me-1">Control Plane</span>
+                  <small class="text-muted">etcd + API server</small>
+                </label>
+              </div>
+            </div>
+            {% for e in node_form.role.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+          </div>
+
+          <hr class="my-1">
+
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="chk-apply" checked
+                   onchange="toggleConfigPanel(this.checked)">
+            <label class="form-check-label fw-semibold" for="chk-apply">
+              Apply Config to Node
+            </label>
+            <div class="form-text">Apply Talos machine config to this node now.</div>
+          </div>
+
+          <div id="insecure-section">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="insecure" id="chk-insecure" checked>
+              <label class="form-check-label" for="chk-insecure">Use <code>--insecure</code> flag</label>
+            </div>
+            <div class="alert alert-warning py-2 small mt-2 mb-0">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Required for new nodes that haven't been provisioned yet.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config Panel -->
+    <div class="col-md-7" id="config-panel">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-file-code me-1"></i> Node Config YAML</span>
+          <button type="button" class="btn btn-sm btn-outline-info" id="fetch-config-btn"
+                  onclick="fetchConfigFromCluster()" title="Fetch existing config from cluster">
+            <i class="bi bi-cloud-download"></i> Fetch from Cluster
+          </button>
+        </div>
+        <div id="fetch-info" class="alert alert-info alert-sm d-none m-2 mb-0 py-2 small"></div>
+        {% if config_form.config_content.errors %}
+        <div class="alert alert-danger m-3 mb-0">
+          {% for e in config_form.config_content.errors %}{{ e }}{% endfor %}
+        </div>
+        {% endif %}
+        <div class="card-body p-0">
+          <textarea id="config-raw" name="config_content" style="display:none">{{ config_form.config_content.value|default:'' }}</textarea>
+          <div id="config-editor"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="mt-4 d-flex gap-2">
+    <button type="button" class="btn btn-primary" onclick="submitForm(true)">
+      <i class="bi bi-play-fill"></i> Add &amp; Apply Config
+    </button>
+    <button type="button" class="btn btn-outline-secondary" onclick="submitForm(false)">
+      <i class="bi bi-plus-lg"></i> Add Node Only
+    </button>
+    <a href="{% url 'clusters:detail' cluster.pk %}" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+<script>
+const rawTextarea = document.getElementById('config-raw');
+const editor = CodeMirror(document.getElementById('config-editor'), {
+  value: rawTextarea.value,
+  mode: 'yaml',
+  theme: 'dracula',
+  lineNumbers: true,
+  indentUnit: 2,
+  tabSize: 2,
+});
+
+function toggleConfigPanel(show) {
+  document.getElementById('config-panel').style.opacity = show ? '1' : '0.4';
+  document.getElementById('insecure-section').style.display = show ? '' : 'none';
+}
+
+function getSelectedRole() {
+  return document.querySelector('input[name="role"]:checked')?.value || 'worker';
+}
+
+function fetchConfigFromCluster() {
+  const btn = document.getElementById('fetch-config-btn');
+  const info = document.getElementById('fetch-info');
+  const role = getSelectedRole();
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  info.className = 'alert alert-info alert-sm m-2 mb-0 py-2 small';
+  info.textContent = 'Fetching config…';
+  info.classList.remove('d-none');
+
+  fetch(`/clusters/{{ cluster.pk }}/node-config/?role=${role}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        editor.setValue(data.config);
+        info.textContent = `Fetched from node ${data.node} (${role}). Review and edit before applying.`;
+        info.className = 'alert alert-success alert-sm m-2 mb-0 py-2 small';
+      } else {
+        info.textContent = 'Could not fetch: ' + (data.error || 'Unknown error');
+        info.className = 'alert alert-warning alert-sm m-2 mb-0 py-2 small';
+      }
+    })
+    .catch(e => {
+      info.textContent = 'Request failed: ' + e;
+      info.className = 'alert alert-danger alert-sm m-2 mb-0 py-2 small';
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-cloud-download"></i> Fetch from Cluster';
+    });
+}
+
+// Auto-fetch when role changes
+document.querySelectorAll('input[name="role"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    if (document.getElementById('chk-apply').checked) {
+      fetchConfigFromCluster();
+    }
+  });
+});
+
+function submitForm(applyConfig) {
+  document.getElementById('apply-config-flag').value = applyConfig ? '1' : '0';
+  rawTextarea.value = editor.getValue();
+  rawTextarea.style.display = '';
+  document.getElementById('node-add-form').submit();
+}
+
+// Init
+toggleConfigPanel(document.getElementById('chk-apply').checked);
+
+// Auto-fetch on page load if cluster has nodes
+fetchConfigFromCluster();
+</script>
+{% endblock %}

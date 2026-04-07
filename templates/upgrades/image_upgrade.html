@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Image Upgrade – Talos{% endblock %}
+{% block header %}Image Upgrade{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h5 class="mb-0">Image Upgrade</h5>
+  <a href="{% url 'upgrades:job_list' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-list-task me-1"></i> All Jobs
+  </a>
+</div>
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-arrow-up-circle me-1"></i> New Image Upgrade Job</div>
+      <div class="card-body">
+        <form method="post" id="upgrade-form" onsubmit="this.querySelector('[type=submit]').disabled=true">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Cluster <span class="text-danger">*</span></label>
+            <select name="cluster" class="form-select" id="cluster-select" required>
+              <option value="">— Select cluster —</option>
+              {% for cluster in form.cluster.field.queryset %}
+              <option value="{{ cluster.pk }}"
+                {% if form.cluster.value == cluster.pk|stringformat:"s" %}selected{% endif %}>
+                {{ cluster.name }}
+              </option>
+              {% endfor %}
+            </select>
+            {% for error in form.cluster.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Image URL <span class="text-danger">*</span></label>
+            <input type="text" name="image_url" class="form-control"
+                   placeholder="ghcr.io/siderolabs/installer:v1.8.0"
+                   value="{{ form.image_url.value|default:'' }}" required>
+            <div class="form-text">{{ form.image_url.help_text }}</div>
+            {% for error in form.image_url.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Target Nodes</label>
+            <div id="node-checkboxes" class="border rounded p-3 bg-dark">
+              <p class="text-muted small mb-0">Select a cluster to see nodes.</p>
+            </div>
+            <div class="form-text">Leave empty to upgrade all nodes.</div>
+          </div>
+
+          {% for error in form.non_field_errors %}
+            <div class="alert alert-danger">{{ error }}</div>
+          {% endfor %}
+
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-play-fill me-1"></i> Start Upgrade
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Info</div>
+      <div class="card-body text-muted small">
+        <p><strong>Image upgrade</strong> replaces the Talos Linux installation on each node.</p>
+        <p>Nodes are upgraded <strong>one at a time</strong>. The job will wait for each node to come back online before moving to the next.</p>
+        <p>Find installer images at:<br>
+           <code>ghcr.io/siderolabs/installer</code>
+        </p>
+        <p class="mb-0">Check releases at <a href="https://github.com/siderolabs/talos/releases" target="_blank">github.com/siderolabs/talos</a>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('cluster-select').addEventListener('change', function() {
+  const clusterId = this.value;
+  const container = document.getElementById('node-checkboxes');
+
+  if (!clusterId) {
+    container.innerHTML = '<p class="text-muted small mb-0">Select a cluster to see nodes.</p>';
+    return;
+  }
+
+  fetch(`/upgrades/cluster/${clusterId}/nodes/`)
+    .then(r => r.json())
+    .then(data => {
+      if (!data.nodes.length) {
+        container.innerHTML = '<p class="text-muted small mb-0">No nodes in this cluster.</p>';
+        return;
+      }
+      container.innerHTML = data.nodes.map(n => `
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="target_nodes"
+                 value="${n.id}" id="node_${n.id}">
+          <label class="form-check-label" for="node_${n.id}">
+            ${n.hostname || n.ip_address}
+            <span class="badge ${n.role === 'controlplane' ? 'bg-warning text-dark' : 'bg-secondary'} ms-1 small">${n.role}</span>
+          </label>
+        </div>
+      `).join('');
+    })
+    .catch(() => {
+      container.innerHTML = '<p class="text-danger small mb-0">Failed to load nodes.</p>';
+    });
+});
+</script>
+{% endblock %}

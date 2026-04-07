@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Patch Templates – Talos{% endblock %}
+{% block header %}Patch Templates{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="mb-0">Patch Templates</h5>
+    <p class="text-muted small mb-0">Saved machine config patch templates.</p>
+  </div>
+  {% if user.profile.is_operator %}
+  <div class="d-flex gap-2">
+    <a href="{% url 'patches:job_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-list-task"></i> Patch Jobs
+    </a>
+    <a href="{% url 'patches:create' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg"></i> New Patch
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{% if templates %}
+<div class="card">
+  <div class="card-body p-0">
+  <div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Target Role</th>
+        <th>Created By</th>
+        <th>Updated</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in templates %}
+      <tr>
+        <td><span class="fw-semibold">{{ t.name }}</span></td>
+        <td class="text-muted small">{{ t.description|default:"–"|truncatechars:60 }}</td>
+        <td>
+          {% if t.target_role == 'controlplane' %}
+            <span class="badge bg-warning text-dark">Control Plane</span>
+          {% elif t.target_role == 'worker' %}
+            <span class="badge bg-secondary">Worker</span>
+          {% else %}
+            <span class="badge bg-primary">All</span>
+          {% endif %}
+        </td>
+        <td class="small">{{ t.created_by.username|default:"–" }}</td>
+        <td class="small text-muted">{{ t.updated_at|date:"Y-m-d H:i" }}</td>
+        <td class="text-end">
+          <div class="d-flex gap-1 justify-content-end">
+            {% if user.profile.is_operator %}
+            <a href="{% url 'patches:apply' t.pk %}" class="btn btn-success btn-sm">
+              <i class="bi bi-play-fill"></i> Apply
+            </a>
+            <a href="{% url 'patches:edit' t.pk %}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+            {% if user.profile.is_admin %}
+            <a href="{% url 'patches:delete' t.pk %}" class="btn btn-outline-danger btn-sm">
+              <i class="bi bi-trash"></i>
+            </a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body">
+    <div class="text-center py-4 text-muted">
+      <i class="bi bi-file-code fs-1 d-block mb-2 opacity-25" aria-hidden="true"></i>
+      <p class="mb-2">No patch templates yet.</p>
+      {% if user.profile.is_operator %}
+      <a href="{% url 'patches:create' %}" class="btn btn-primary btn-sm">Create your first patch</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
