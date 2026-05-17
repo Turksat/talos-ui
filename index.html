@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Talos Dashboard – Web UI for Talos Linux Cluster Management</title>
+  <meta name="description" content="Talos Dashboard is an open-source web interface for managing Talos Linux clusters. Real-time node operations, machine config editing, image and Kubernetes upgrades, patch templates, and live log streaming — all from your browser.">
+  <meta name="keywords" content="Talos Linux, Talos Dashboard, Kubernetes, cluster management, talosctl, Django, open source, node upgrade, machine config, WebSocket">
+  <meta name="author" content="Turksat">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://turksat.github.io/talos-ui/">
+  <link rel="sitemap" type="application/xml" href="/talos-ui/sitemap.xml">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://turksat.github.io/talos-ui/">
+  <meta property="og:title" content="Talos Dashboard – Web UI for Talos Linux Cluster Management">
+  <meta property="og:description" content="Open-source web dashboard for Talos Linux clusters. Real-time upgrades, machine config editing, patch management, and live node logs via WebSocket.">
+  <meta property="og:image" content="https://turksat.github.io/talos-ui/images/talos-dasboard-1.png">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Talos Dashboard – Web UI for Talos Linux Cluster Management">
+  <meta name="twitter:description" content="Open-source web dashboard for Talos Linux clusters. Real-time upgrades, machine config editing, patch management, and live node logs via WebSocket.">
+  <meta name="twitter:image" content="https://turksat.github.io/talos-ui/images/talos-dasboard-1.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Talos Dashboard",
+    "description": "Open-source web-based management dashboard for Talos Linux clusters.",
+    "url": "https://turksat.github.io/talos-ui/",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Linux",
+    "license": "https://opensource.org/licenses/MIT",
+    "codeRepository": "https://github.com/Turksat/talos-ui",
+    "programmingLanguage": ["Python", "JavaScript", "HTML"],
+    "author": {
+      "@type": "Organization",
+      "name": "Turksat",
+      "url": "https://github.com/Turksat"
+    }
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #161b22 0%, #0d1117 60%);
+      border-bottom: 1px solid #30363d;
+      padding: 80px 24px 60px;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      background: #1f2937;
+      border: 1px solid #30363d;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: .78rem;
+      color: #58a6ff;
+      letter-spacing: .5px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+      background: linear-gradient(90deg, #e6edf3 0%, #58a6ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      max-width: 640px;
+      margin: 0 auto 32px;
+      color: #8b949e;
+      font-size: 1.05rem;
+    }
+
+    .btn-group { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 6px;
+      font-size: .95rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: #238636; color: #fff; }
+    .btn-secondary { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+
+    /* ── Features ── */
+    .features {
+      max-width: 1000px;
+      margin: 64px auto;
+      padding: 0 24px;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 40px;
+      color: #e6edf3;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .feature-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 20px 22px;
+      transition: border-color .15s;
+    }
+    .feature-card:hover { border-color: #58a6ff; }
+
+    .feature-card h3 {
+      font-size: .95rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #e6edf3;
+    }
+
+    .feature-card p {
+      font-size: .83rem;
+      color: #8b949e;
+    }
+
+    /* ── Demo / Video ── */
+    .demo {
+      max-width: 900px;
+      margin: 0 auto 80px;
+      padding: 0 24px;
+    }
+
+    .video-wrapper {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    }
+
+    .video-wrapper iframe {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border: 0;
+    }
+
+    /* ── Screenshots ── */
+    .screenshots {
+      max-width: 1100px;
+      margin: 0 auto 80px;
+      padding: 0 24px;
+    }
+
+    .screenshot-item { margin-bottom: 64px; }
+
+    .screenshot-label {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .screenshot-num {
+      background: #58a6ff;
+      color: #0d1117;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .8rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .screenshot-label h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #e6edf3;
+      margin-bottom: 2px;
+    }
+
+    .screenshot-label p {
+      font-size: .82rem;
+      color: #8b949e;
+    }
+
+    .screenshot-frame {
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #161b22;
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+
+    .screenshot-frame img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* ── Stack ── */
+    .stack {
+      background: #161b22;
+      border-top: 1px solid #30363d;
+      border-bottom: 1px solid #30363d;
+      padding: 48px 24px;
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .stack-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 24px;
+    }
+
+    .pill {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: .82rem;
+      color: #8b949e;
+    }
+
+    /* ── Installation ── */
+    .install {
+      max-width: 860px;
+      margin: 0 auto 80px;
+      padding: 0 24px;
+    }
+
+    .install-inner {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 40px 48px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .install-inner::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #3fb950 0%, #58a6ff 100%);
+    }
+
+    .install-inner h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #e6edf3;
+      margin-bottom: 8px;
+    }
+
+    .install-inner .subtitle {
+      color: #8b949e;
+      font-size: .9rem;
+      margin-bottom: 28px;
+    }
+
+    .install-step {
+      margin-bottom: 24px;
+    }
+
+    .install-step h3 {
+      font-size: .85rem;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 8px;
+    }
+
+    pre {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-size: .88rem;
+      line-height: 1.7;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      color: #79c0ff;
+    }
+
+    .note {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-left: 3px solid #d29922;
+      border-radius: 4px;
+      font-size: .83rem;
+      color: #8b949e;
+    }
+
+    /* ── About ── */
+    .about {
+      max-width: 860px;
+      margin: 0 auto 80px;
+      padding: 0 24px;
+    }
+
+    .about-inner {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 48px 52px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .about-inner::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #58a6ff 0%, #3fb950 50%, #f78166 100%);
+    }
+
+    .about-inner h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #e6edf3;
+      margin-bottom: 20px;
+    }
+
+    .about-inner p {
+      color: #8b949e;
+      font-size: .95rem;
+      line-height: 1.8;
+      margin-bottom: 16px;
+    }
+
+    .about-inner p:last-child { margin-bottom: 0; }
+    .about-inner strong { color: #e6edf3; font-weight: 600; }
+
+    .mono {
+      display: inline-block;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: .83rem;
+      color: #79c0ff;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      color: #6e7681;
+      font-size: .82rem;
+      border-top: 1px solid #21262d;
+    }
+
+    footer a { color: #58a6ff; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .about-inner, .install-inner { padding: 28px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Hero ── -->
+<header class="hero">
+  <div class="hero-badge">Open Source &nbsp;·&nbsp; MIT License</div>
+  <h1>Talos Dashboard</h1>
+  <p>A web-based management interface for Talos Linux clusters. Node operations, machine config editing, upgrades, and patch workflows — with real-time output streamed directly to your browser.</p>
+  <div class="btn-group">
+    <a href="https://github.com/Turksat/talos-ui" class="btn btn-primary">View on GitHub</a>
+    <a href="#install" class="btn btn-secondary">Quick Start</a>
+  </div>
+</header>
+
+<!-- ── Features ── -->
+<section class="features" aria-label="Features">
+  <h2 class="section-title">Features</h2>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>Cluster Management</h3>
+      <p>Add, edit, and delete clusters. Download talosconfig and kubeconfig directly from the UI.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Node Operations</h3>
+      <p>Reboot, shutdown, reset, restart services, and stream live node logs via WebSocket.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Machine Config Editor</h3>
+      <p>View and edit full YAML machine configurations in the browser. Apply with selectable modes (auto, reboot, staged, try).</p>
+    </div>
+    <div class="feature-card">
+      <h3>Patch Templates</h3>
+      <p>Save JSON RFC 6902 or YAML merge patches and apply them to all nodes, control planes, or workers.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Image &amp; K8s Upgrades</h3>
+      <p>Trigger Talos OS image or Kubernetes control plane upgrades with real-time streaming output per node.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Bootstrap Wizard</h3>
+      <p>3-step wizard: generate configs, edit YAML in browser, apply to nodes and bootstrap etcd automatically.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Live Events &amp; Logs</h3>
+      <p>Real-time cluster event stream and per-node service logs over WebSocket on the cluster detail page.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Role-Based Access</h3>
+      <p>Admin, operator, and viewer roles. Optional LDAP and Keycloak/OIDC SSO via environment variables.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Stack ── -->
+<div class="stack" aria-label="Technology stack">
+  <h2 class="section-title" style="margin-bottom:0">Stack</h2>
+  <div class="stack-pills">
+    <span class="pill">Django 5.x</span>
+    <span class="pill">Django Channels 4.x</span>
+    <span class="pill">Celery</span>
+    <span class="pill">Redis</span>
+    <span class="pill">Bootstrap 5</span>
+    <span class="pill">HTMX</span>
+    <span class="pill">CodeMirror 5</span>
+    <span class="pill">SQLite / PostgreSQL</span>
+    <span class="pill">talosctl</span>
+    <span class="pill">WebSocket</span>
+  </div>
+</div>
+
+<!-- ── Demo ── -->
+<section class="demo" aria-label="Demo video">
+  <h2 class="section-title">Demo</h2>
+  <div class="video-wrapper">
+    <iframe
+      src="https://www.youtube.com/embed/4LdeBhFLagw"
+      title="Talos Dashboard demo"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowfullscreen>
+    </iframe>
+  </div>
+</section>
+
+<!-- ── Quick Start ── -->
+<section class="install" id="install" aria-label="Installation">
+  <div class="install-inner">
+    <h2>Quick Start</h2>
+    <p class="subtitle">Docker and Docker Compose are the only requirements. <code>talosctl</code> must be installed and available in your PATH.</p>
+
+    <div class="install-step">
+      <h3>1 — Clone</h3>
+      <pre><code>git clone https://github.com/Turksat/talos-ui.git
+cd talos-ui</code></pre>
+    </div>
+
+    <div class="install-step">
+      <h3>2 — Build</h3>
+      <pre><code>sudo docker compose build --build-arg TALOS_VERSION=v1.13.0</code></pre>
+    </div>
+
+    <div class="install-step">
+      <h3>3 — Run</h3>
+      <pre><code>docker compose up</code></pre>
+      <p style="color:#8b949e;font-size:.83rem;margin-top:10px;">Opens three services: <code style="color:#79c0ff">redis</code>, <code style="color:#79c0ff">django</code> (Daphne ASGI on port 8000), and <code style="color:#79c0ff">celery</code> worker.</p>
+    </div>
+
+    <div class="install-step">
+      <h3>4 — Open</h3>
+      <pre><code>http://localhost:8000</code></pre>
+      <p style="color:#8b949e;font-size:.83rem;margin-top:10px;">Default credentials: <code style="color:#79c0ff">admin / admin</code></p>
+    </div>
+
+    <div class="note">
+      Change the default password immediately after first login. For production, set a strong <code>SECRET_KEY</code> in a <code>.env</code> file at the project root.
+    </div>
+  </div>
+</section>
+
+<!-- ── Screenshots ── -->
+<section class="screenshots" aria-label="Screenshots">
+  <h2 class="section-title">Screenshots</h2>
+
+  <div class="screenshot-item">
+    <div class="screenshot-label">
+      <div class="screenshot-num" aria-hidden="true">1</div>
+      <div>
+        <h2>Dashboard Overview</h2>
+        <p>Cluster list with node counts, status summary, and quick-access actions.</p>
+      </div>
+    </div>
+    <div class="screenshot-frame">
+      <img src="images/talos-dasboard-1.png" alt="Talos Dashboard overview" loading="lazy" width="1280" height="720">
+    </div>
+  </div>
+
+  <div class="screenshot-item">
+    <div class="screenshot-label">
+      <div class="screenshot-num" aria-hidden="true">2</div>
+      <div>
+        <h2>Cluster &amp; Node Detail</h2>
+        <p>Node list with live status, operation controls, version info, and real-time log streaming.</p>
+      </div>
+    </div>
+    <div class="screenshot-frame">
+      <img src="images/talos-dashboard-2.png" alt="Cluster and node detail" loading="lazy" width="1280" height="720">
+    </div>
+  </div>
+
+  <div class="screenshot-item">
+    <div class="screenshot-label">
+      <div class="screenshot-num" aria-hidden="true">3</div>
+      <div>
+        <h2>Resource Usage &amp; Processes</h2>
+        <p>Per-node CPU, memory, disk metrics and running process list.</p>
+      </div>
+    </div>
+    <div class="screenshot-frame">
+      <img src="images/talos-dashboard-3.png" alt="Node resource usage" loading="lazy" width="1280" height="720">
+    </div>
+  </div>
+
+  <div class="screenshot-item">
+    <div class="screenshot-label">
+      <div class="screenshot-num" aria-hidden="true">4</div>
+      <div>
+        <h2>Image Upgrade</h2>
+        <p>Upgrade Talos OS image on selected nodes with real-time streaming console output.</p>
+      </div>
+    </div>
+    <div class="screenshot-frame">
+      <img src="images/talos-dashboard-4.png" alt="Talos OS image upgrade" loading="lazy" width="1280" height="720">
+    </div>
+  </div>
+
+  <div class="screenshot-item">
+    <div class="screenshot-label">
+      <div class="screenshot-num" aria-hidden="true">5</div>
+      <div>
+        <h2>Kubernetes Upgrade</h2>
+        <p>Upgrade the Kubernetes control plane with live log output in the browser.</p>
+      </div>
+    </div>
+    <div class="screenshot-frame">
+      <img src="images/talos-dashboard-5.png" alt="Kubernetes upgrade" loading="lazy" width="1280" height="720">
+    </div>
+  </div>
+
+  <div class="screenshot-item">
+    <div class="screenshot-label">
+      <div class="screenshot-num" aria-hidden="true">6</div>
+      <div>
+        <h2>Patch Management</h2>
+        <p>Apply JSON or YAML patches to all nodes, control planes, or workers with live console output per job.</p>
+      </div>
+    </div>
+    <div class="screenshot-frame">
+      <img src="images/talos-dashboard-6.png" alt="Patch management" loading="lazy" width="1280" height="720">
+    </div>
+  </div>
+
+  <div class="screenshot-item">
+    <div class="screenshot-label">
+      <div class="screenshot-num" aria-hidden="true">7</div>
+      <div>
+        <h2>Upgrade Job History</h2>
+        <p>History of all upgrade jobs with status, timestamps, and full console log replay.</p>
+      </div>
+    </div>
+    <div class="screenshot-frame">
+      <img src="images/talos-dasboard-7.png" alt="Upgrade job history" loading="lazy" width="1280" height="720">
+    </div>
+  </div>
+
+</section>
+
+<!-- ── About ── -->
+<section class="about" aria-label="About">
+  <div class="about-inner">
+    <h2>About This Project</h2>
+    <p>
+      <strong>Talos Dashboard</strong> was built out of a real operational need at Türksat.
+      Managing Talos Linux clusters through the command line is powerful but repetitive —
+      every reboot, config apply, or upgrade cycle meant juggling
+      <span class="mono">talosctl</span> flags, YAML files, and multiple terminal windows.
+      The goal was to bring all of that into a single, browser-based interface without giving
+      up transparency or control.
+    </p>
+    <p>
+      All <span class="mono">talosctl</span> calls use subprocess with <strong>shell=False</strong>
+      throughout. Talosconfig files are written to a temporary path with mode
+      <span class="mono">0o600</span> and deleted immediately after each operation.
+      Role-based access (admin / operator / viewer) is enforced at the view layer so teams
+      can share the dashboard without sharing full cluster credentials.
+    </p>
+    <p>
+      Real-time feedback was a first-class concern from the start. Upgrade and patch operations
+      stream output line-by-line to the browser over WebSocket using
+      <strong>Django Channels</strong> and <strong>Celery</strong>, so you never have to
+      tail a log file to know what is happening on a node.
+    </p>
+    <p>
+      Contributions, bug reports, and feature requests are welcome via
+      <a href="https://github.com/Turksat/talos-ui/issues">GitHub Issues</a>.
+    </p>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <p>
+    <a href="https://github.com/Turksat/talos-ui">github.com/Turksat/talos-ui</a>
+    &nbsp;&middot;&nbsp;
+    MIT License
+    &nbsp;&middot;&nbsp;
+    Built for <a href="https://www.talos.dev/">Talos Linux</a>
+  </p>
+</footer>
+
+</body>
+</html>
